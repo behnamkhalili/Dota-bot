@@ -1,7 +1,8 @@
 from typing import List
-from sqlalchemy import Integer, Boolean, ForeignKey, DateTime
+from sqlalchemy import Integer, Boolean, ForeignKey, DateTime, String
 from sqlalchemy.orm import relationship, DeclarativeBase, Mapped, mapped_column
 from datetime import datetime
+
 
 class Base(DeclarativeBase):
     pass
@@ -13,11 +14,13 @@ class PlayerStats(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     account_id: Mapped[int] = mapped_column(
         Integer, index=True
-    )  # ForeignKey("players.account_id") after making the table and relationship
+    )  # ForeignKey("players.account_id")
     match_id: Mapped[int] = mapped_column(ForeignKey("matches.match_id"), index=True)
     hero_id: Mapped[int] = mapped_column(
         Integer, index=True
-    )  # ForeignKey("heroes.hero_id") after making the table and relationship
+    )  # ForeignKey("heroes.hero_id")
+    rank_tier: Mapped[int] =mapped_column(Integer , index=True)
+    personaname:Mapped[str]= mapped_column(String , index=True)
     kills: Mapped[int] = mapped_column(Integer)
     deaths: Mapped[int] = mapped_column(Integer)
     assists: Mapped[int] = mapped_column(Integer)
@@ -38,8 +41,8 @@ class PlayerStats(Base):
 class Match(Base):
     __tablename__ = "matches"
 
-    match_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    start_time: Mapped[datetime] = mapped_column(DateTime,index=True)
+    match_id: Mapped[int] = mapped_column(Integer,unique=True, primary_key=True)
+    start_time: Mapped[datetime] = mapped_column(DateTime, index=True)
     duration: Mapped[int] = mapped_column(Integer)
     radiant_win: Mapped[int] = mapped_column(Boolean, index=True)
     game_mode: Mapped[int] = mapped_column(Integer, index=True)

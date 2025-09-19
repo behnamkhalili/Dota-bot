@@ -1,4 +1,5 @@
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import Any, Optional
 from pydantic import (
     AliasChoices,
@@ -11,7 +12,9 @@ from pydantic import (
 
 
 class Player(BaseModel):
-    account_id: Optional[int] = 0  # Only public accounts has a visible account_id.
+    account_id: Optional[int] = 0  # Only public accounts
+    rank_tier: Optional[int] = 0  # Only public accounts
+    personaname: Optional[str] = "Unknown"  # Only public accounts
     match_id: int
     hero_id: int
     kills: int
@@ -47,6 +50,20 @@ class Player(BaseModel):
     aghanims_scepter: bool
     moonshard: bool
 
+    @field_validator("rank_tier", "account_id", mode="before")
+    @classmethod
+    def set_default_if_none(cls, v: int | None) -> int:
+        if v is None:
+            return 1 # its for unranked accounts and account id is for safety XD
+        return v
+
+    @field_validator("personaname", mode="before")
+    @classmethod
+    def set_default_name_if_none(cls, v: str | None) -> str:
+        if v is None:
+            return "InvalidName"
+        return v
+
 
 class Match(BaseModel):
     match_id: int
@@ -70,21 +87,28 @@ class Match(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def get_has_parsed(cls, data: dict[str, Any]) -> dict[str, Any]:
-        if isinstance(has_parsed_value := data["od_data"].get("has_parsed"), bool):
+        od_data: dict[str, bool] | None = data.get("od_data")
+        if od_data and isinstance(has_parsed_value := od_data.get("has_parsed"), bool):
             data["has_parsed"] = has_parsed_value
         else:
             data["has_parsed"] = False
+        return data
 
-        players: list[dict[str, Any]] = data["players"]
-        for player in players:
-            player["match_id"] = data["match_id"]
-        data["players"] = players
+    @model_validator(mode="before")
+    @classmethod
+    def give_players_match_id(cls, data: dict[str, Any]) -> dict[str, Any]:
+        players: list[dict[str, Any]] | None = data.get("players")
+        match_id = data.get("match_id")
+        if match_id and players:
+            for player in players:
+                player["match_id"] = match_id
+            data["players"] = players
         return data
 
     @field_validator("start_time", mode="before")
     @classmethod
     def unix_time_to_datetime(cls, unixtime: int) -> datetime:
-        return datetime.fromtimestamp(unixtime)
+        return datetime.fromtimestamp(unixtime, tz=ZoneInfo("Asia/Tehran"))
 
 
 class MatchHistory(BaseModel):
