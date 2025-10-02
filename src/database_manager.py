@@ -7,8 +7,8 @@ from sqlalchemy.exc import (
     NoSuchTableError,
     NoResultFound,
 )
-from models import Base, Match as MatchModel, PlayerStats as PlayerStatsModel
-from data_processor import OpenDotaMatch as MatchParser
+from models import Base, Match , PlayerStats , MatchItem
+from data_processor import StratzMatchDetail
 from datetime import datetime
 import os
 
@@ -26,46 +26,67 @@ class DatabaseManager:
         self.Session = sessionmaker(bind=engine, autoflush=True, expire_on_commit=True)
         Base.metadata.create_all(engine)
 
-    def save_match_data(self, match_detail: MatchParser) -> None:
+    def save_match_data(self, match_detail: StratzMatchDetail) -> None:
         with self.Session() as session:
-            match = MatchModel(
-                match_id=match_detail.match_id,
-                start_time=match_detail.start_time,
-                duration=match_detail.duration,
-                radiant_win=match_detail.radiant_win,
-                game_mode=match_detail.game_mode,
-                lobby_type=match_detail.lobby_type,
-                first_blood_time=match_detail.first_blood_time,
-                dire_score=match_detail.dire_score,
-                radiant_score=match_detail.radiant_score,
-                tower_status_dire=match_detail.tower_status_dire,
-                tower_status_radiant=match_detail.tower_status_radiant,
-                barracks_status_dire=match_detail.barracks_status_dire,
-                barracks_status_radiant=match_detail.barracks_status_radiant,
-                patch=match_detail.patch,
-                region=match_detail.region,
-                has_parsed=match_detail.has_parsed,
+            match = Match(
+                matchId = match_detail.id,
+                gameVersionId = match_detail.gameVersionId,
+                midLaneOutcome = match_detail.midLaneOutcome,
+                topLaneOutcome = match_detail.topLaneOutcome,
+                bottomLaneOutcome = match_detail.bottomLaneOutcome,
+                actualRank= match_detail.actualRank,
+                durationSeconds= match_detail.durationSeconds,
+                firstBloodTime= match_detail.firstBloodTime,
+                regionId = match_detail.regionId,
+                didRadiantWin = match_detail.didRadiantWin,
+                gameMode= match_detail.gameMode,
+                rank= match_detail.rank,
+                startDateTime= match_detail.startDateTime,
+                parsedDateTime= match_detail.parsedDateTime,
+                endDateTime = match_detail.endDateTime,
+                statsDateTime= match_detail.statsDateTime,
+                averageImp= match_detail.averageImp,
+                towerStatusDire= match_detail.towerStatusDire,
+                barracksStatusDire= match_detail.barracksStatusDire,
+                towerStatusRadiant= match_detail.towerStatusRadiant,
+                barracksStatusRadiant= match_detail.barracksStatusRadiant,
                 players=[
-                    PlayerStatsModel(
-                        account_id=p.account_id,
-                        match_id=p.match_id,
-                        hero_id=p.hero_id,
-                        kills=p.kills,
-                        deaths=p.deaths,
-                        assists=p.assists,
-                        level=p.level,
-                        gold_per_min=p.gold_per_min,
-                        xp_per_min=p.xp_per_min,
-                        last_hits=p.last_hits,
-                        denies=p.denies,
-                        net_worth=p.net_worth,
-                        hero_damage=p.hero_damage,
-                        tower_damage=p.tower_damage,
-                        hero_healing=p.hero_healing,
-                        is_win=p.is_win,
-                        is_radiant=p.is_radiant,
-                        rank_tier=p.rank_tier,
-                        personaname = p.personaname
+                    PlayerStats(
+                        steamAccountId = p.steamAccountId,
+                        matchId = p.matchId,
+                        countryCode = p.countryCode,
+                        seasonRank = p.seasonRank,
+                        name = p.name,
+                        realName = p.realName,
+                        dotaAccountLevel = p.dotaAccountLevel,
+                        hero= p.hero,
+                        imp= p.imp,
+                        kills = p.kills,
+                        deaths = p.deaths,
+                        assists = p.assists,
+                        numLastHits= p.numLastHits,
+                        numDenies= p.numDenies,
+                        experiencePerMinute= p.experiencePerMinute,
+                        goldPerMinute= p.goldPerMinute,
+                        heroDamage= p.heroDamage,
+                        towerDamage= p.towerDamage,
+                        heroHealing= p.heroHealing,
+                        isRadiant= p.isRadiant,
+                        isVictory= p.isVictory,
+                        networth= p.networth,
+                        level= p.level,
+                        position= p.position,
+                        partyId= p.partyId,
+                        items=[
+                            MatchItem(
+                                itemId = i.itemId,
+                                time = i.time,
+                                matchId = i.matchId,
+                                steamAccountId = i.steamAccountId
+                            )
+                            for i in p.itemPurchases
+                        ] if p.itemPurchases else []
+
                     )
                     for p in match_detail.players
                 ],
@@ -73,7 +94,7 @@ class DatabaseManager:
             try:
                 session.add(match)
                 session.commit()
-                print(f"match:{match_detail.match_id} added in database successfully.")
+                print(f"match:{match_detail.id} added in database successfully.")
             except IntegrityError as e  :
                 session.rollback()
                 print(
@@ -91,9 +112,9 @@ class DatabaseManager:
 
     def get_player_last_match_time(self, account_id: int) -> datetime | None:
         last_match_time_query = (
-            select(func.max(MatchModel.start_time))
-            .join(PlayerStatsModel, PlayerStatsModel.match_id == MatchModel.match_id)
-            .where(PlayerStatsModel.account_id == account_id)
+            select(func.max(Match.startDateTime))
+            .join(PlayerStats, PlayerStats.matchId == Match.matchId)
+            .where(PlayerStats.steamAccountId == account_id)
         )
         try:
             with self.Session() as session:

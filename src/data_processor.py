@@ -14,22 +14,25 @@ from pydantic import (
 class StatsItem(BaseModel):
     itemId: int
     time: int
-    matchId : int
-    steamAccountId : int
+    matchId: int
+    steamAccountId: int
 
 
 class StratzPlayer(BaseModel):
     steamAccountId: int
     matchId: int
-    smurfFlag: int | None
-    countryCode: str
-    seasonRank: int | None
+    smurfFlag: Optional[int] = 999
+    countryCode: Optional[str] = "N/A"
+    seasonRank: Optional[int] = 999
     name: str
-    realName: str
+    realName: Optional[str] = "N/A"
     dotaAccountLevel: int
     hero: str
-    imp: int
-    intentionalFeeding: bool
+    imp: Optional[int] = 999
+    kills: int
+    deaths: int
+    assists: int
+    intentionalFeeding: Optional[bool] = False
     numLastHits: int
     numDenies: int
     experiencePerMinute: int
@@ -41,9 +44,9 @@ class StratzPlayer(BaseModel):
     isVictory: bool
     networth: int
     level: int
-    position: str
-    partyId: int | None
-    itemPurchases: list[StatsItem]
+    position: Optional[str] = "N/A"
+    partyId: Optional[int] = 999
+    itemPurchases: Optional[list[StatsItem]] = []
 
     @model_validator(mode="before")
     @classmethod
@@ -67,6 +70,20 @@ class StratzPlayer(BaseModel):
         player_data["itemPurchases"] = items
         return player_data
 
+    @field_validator("partyId", "imp", "smurfFlag", "seasonRank", mode="before")
+    @classmethod
+    def int_parameters_none_handler(cls, v: int | None):
+        if v:
+            return v
+        return 999
+
+    @field_validator("position", "realName", "countryCode", mode="before")
+    @classmethod
+    def str_parameters_none_handler(cls, v: str | None):
+        if v:
+            return v
+        return "N/A"
+
 
 class StratzMatchDetail(BaseModel):
     id: int
@@ -82,10 +99,10 @@ class StratzMatchDetail(BaseModel):
     gameMode: str
     rank: int
     startDateTime: datetime
-    parsedDateTime: datetime
+    parsedDateTime: Optional[datetime]
     endDateTime: datetime
-    statsDateTime: datetime
-    averageImp: int
+    statsDateTime: Optional[datetime]
+    averageImp: Optional[int] = 999
     towerStatusDire: int
     barracksStatusDire: int
     towerStatusRadiant: int
@@ -97,7 +114,25 @@ class StratzMatchDetail(BaseModel):
     )
     @classmethod
     def unix_time_to_datetime(cls, unixtime: int):
+        if not unixtime:
+            unixtime = 1002819727
         return datetime.fromtimestamp(unixtime, tz=ZoneInfo("Asia/Tehran"))
+
+    @field_validator(
+        "midLaneOutcome", "topLaneOutcome", "bottomLaneOutcome", mode="before"
+    )
+    @classmethod
+    def lane_outcome_none_handler(cls, v: str | None):
+        if v:
+            return v
+        return "N/A"
+
+    @field_validator("averageImp", mode="before")
+    @classmethod
+    def int_parameters_none_handler(cls, v: int | None):
+        if v:
+            return v
+        return 999
 
 
 class OpenDotaPlayer(BaseModel):

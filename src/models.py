@@ -1,5 +1,5 @@
 from typing import List
-from sqlalchemy import Integer, Boolean, ForeignKey, DateTime, String
+from sqlalchemy import DateTime, Integer, Boolean, ForeignKey, String
 from sqlalchemy.orm import relationship, DeclarativeBase, Mapped, mapped_column
 from datetime import datetime
 
@@ -12,59 +12,82 @@ class PlayerStats(Base):
     __tablename__ = "players_stats"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    account_id: Mapped[int] = mapped_column(
-        Integer, index=True
-    )  # ForeignKey("players.account_id")
-    match_id: Mapped[int] = mapped_column(ForeignKey("matches.match_id"), index=True)
-    hero_id: Mapped[int] = mapped_column(
-        Integer, index=True
-    )  # ForeignKey("heroes.hero_id")
-    rank_tier: Mapped[int] =mapped_column(Integer , index=True)
-    personaname:Mapped[str]= mapped_column(String , index=True)
+    steamAccountId: Mapped[int] = mapped_column(Integer)
+    matchId: Mapped[int] = mapped_column(ForeignKey("matches.matchId"))
+    #smurfFlag: Mapped[int] = mapped_column(Integer)
+    countryCode: Mapped[str] = mapped_column(String, index=True)
+    seasonRank: Mapped[int] = mapped_column(Integer)
+    name: Mapped[str] = mapped_column(String, index=True)
+    realName: Mapped[str] = mapped_column(String, index=True)
+    dotaAccountLevel: Mapped[int] = mapped_column(Integer)
+    hero: Mapped[str] = mapped_column(String, index=True)
+    imp: Mapped[int] = mapped_column(Integer)
+    #intentionalFeeding: Mapped[bool] = mapped_column(Boolean, index=True)
     kills: Mapped[int] = mapped_column(Integer)
     deaths: Mapped[int] = mapped_column(Integer)
     assists: Mapped[int] = mapped_column(Integer)
+    numLastHits: Mapped[int] = mapped_column(Integer)
+    numDenies: Mapped[int] = mapped_column(Integer)
+    experiencePerMinute: Mapped[int] = mapped_column(Integer)
+    goldPerMinute: Mapped[int] = mapped_column(Integer)
+    heroDamage: Mapped[int] = mapped_column(Integer)
+    towerDamage: Mapped[int] = mapped_column(Integer)
+    heroHealing: Mapped[int] = mapped_column(Integer)
+    isRadiant: Mapped[bool] = mapped_column(Boolean, index=True)
+    isVictory: Mapped[bool] = mapped_column(Boolean, index=True)
+    networth: Mapped[int] = mapped_column(Integer)
     level: Mapped[int] = mapped_column(Integer)
-    gold_per_min: Mapped[int] = mapped_column(Integer)
-    xp_per_min: Mapped[int] = mapped_column(Integer)
-    last_hits: Mapped[int] = mapped_column(Integer)
-    denies: Mapped[int] = mapped_column(Integer)
-    net_worth: Mapped[int] = mapped_column(Integer)
-    hero_damage: Mapped[int] = mapped_column(Integer)
-    tower_damage: Mapped[int] = mapped_column(Integer)
-    hero_healing: Mapped[int] = mapped_column(Integer)
-    is_win: Mapped[bool] = mapped_column(Boolean, index=True)
-    is_radiant: Mapped[bool] = mapped_column(Boolean, index=True)
+    position: Mapped[str] = mapped_column(String, index=True)
+    partyId: Mapped[int] = mapped_column(Integer)
+    items: Mapped[List["MatchItem"]] = relationship(
+        "MatchItem",
+        back_populates="player",
+        cascade="all, delete-orphan",
+    )
     match: Mapped["Match"] = relationship("Match", back_populates="players")
 
 
 class Match(Base):
     __tablename__ = "matches"
 
-    match_id: Mapped[int] = mapped_column(Integer,unique=True, primary_key=True)
-    start_time: Mapped[datetime] = mapped_column(DateTime, index=True)
-    duration: Mapped[int] = mapped_column(Integer)
-    radiant_win: Mapped[int] = mapped_column(Boolean, index=True)
-    game_mode: Mapped[int] = mapped_column(Integer, index=True)
-    lobby_type: Mapped[int] = mapped_column(Integer)
-    first_blood_time: Mapped[int] = mapped_column(Integer)
-    dire_score: Mapped[int] = mapped_column(Integer)
-    radiant_score: Mapped[int] = mapped_column(Integer)
-    tower_status_radiant: Mapped[int] = mapped_column(Integer)
-    tower_status_dire: Mapped[int] = mapped_column(Integer)
-    barracks_status_radiant: Mapped[int] = mapped_column(Integer)
-    barracks_status_dire: Mapped[int] = mapped_column(Integer)
-    patch: Mapped[int] = mapped_column(Integer, index=True)
-    region: Mapped[int] = mapped_column(Integer, index=True)
-    has_parsed: Mapped[bool] = mapped_column(Boolean, index=True)
+    matchId: Mapped[int] = mapped_column(Integer, unique=True, primary_key=True)
+    gameVersionId: Mapped[int] = mapped_column(Integer)
+    midLaneOutcome: Mapped[str] = mapped_column(String, index=True)
+    topLaneOutcome: Mapped[str] = mapped_column(String, index=True)
+    bottomLaneOutcome: Mapped[str] = mapped_column(String, index=True)
+    actualRank: Mapped[int] = mapped_column(Integer)
+    durationSeconds: Mapped[int] = mapped_column(Integer)
+    firstBloodTime: Mapped[int] = mapped_column(Integer)
+    regionId: Mapped[int] = mapped_column(Integer)
+    didRadiantWin: Mapped[bool] = mapped_column(Boolean, index=True)
+    gameMode: Mapped[str] = mapped_column(String, index=True)
+    rank: Mapped[int] = mapped_column(Integer)
+    startDateTime: Mapped[datetime] = mapped_column(DateTime)
+    parsedDateTime: Mapped[datetime] = mapped_column(DateTime)
+    endDateTime: Mapped[datetime] = mapped_column(DateTime)
+    statsDateTime: Mapped[datetime] = mapped_column(DateTime)
+    averageImp: Mapped[int] = mapped_column(Integer)
+    towerStatusDire: Mapped[int] = mapped_column(Integer)
+    barracksStatusDire: Mapped[int] = mapped_column(Integer)
+    towerStatusRadiant: Mapped[int] = mapped_column(Integer)
+    barracksStatusRadiant: Mapped[int] = mapped_column(Integer)
     players: Mapped[List["PlayerStats"]] = relationship(
         "PlayerStats",
         back_populates="match",
         cascade="all, delete-orphan",
     )
 
-    def __repr__(self) -> str:
-        return f"Match(match_id={self.match_id!r}, start_time={self.start_time!r}, game_mode={self.game_mode!r})"
+
+class MatchItem(Base):
+    __tablename__ = "matches_items"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    itemId: Mapped[int] = mapped_column(Integer)
+    time: Mapped[int] = mapped_column(Integer)
+    matchId: Mapped[int] = mapped_column(ForeignKey("matches.matchId"))
+    steamAccountId: Mapped[int] = mapped_column(
+        ForeignKey("players_stats.steamAccountId")
+    )
+    player: Mapped["PlayerStats"] = relationship("PlayerStats", back_populates="items")
 
 
 """
@@ -73,27 +96,7 @@ class Player(Base):  # TODO complete
     pass
 """
 
-# should make a player_parser and get_player_info and logic for it
-# after completing items and heroes and matches_items table
 """class Items(Base):  # TODO complete
     __tablename__ = "items"
     pass
 """
-
-# after completing constants parser
-
-
-"""class Hero(Base):  # TODO complete
-    __tablename__ = "heroes"
-    pass"""
-
-
-# after completing constants parser
-
-
-"""class MatchItem(Base):  # TODO complete
-    __tablename__ = "matches_items"
-    pass"""
-
-
-# after making items table

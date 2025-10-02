@@ -77,6 +77,9 @@ class StratzApiClient:
                 hero {{
                 shortName
                 }}
+                kills
+                deaths
+                assists
                 imp
                 intentionalFeeding
                 numLastHits
