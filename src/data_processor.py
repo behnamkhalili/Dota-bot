@@ -11,7 +11,96 @@ from pydantic import (
 )
 
 
-class Player(BaseModel):
+class StatsItem(BaseModel):
+    itemId: int
+    time: int
+    matchId : int
+    steamAccountId : int
+
+
+class StratzPlayer(BaseModel):
+    steamAccountId: int
+    matchId: int
+    smurfFlag: int | None
+    countryCode: str
+    seasonRank: int | None
+    name: str
+    realName: str
+    dotaAccountLevel: int
+    hero: str
+    imp: int
+    intentionalFeeding: bool
+    numLastHits: int
+    numDenies: int
+    experiencePerMinute: int
+    goldPerMinute: int
+    heroDamage: int
+    towerDamage: int
+    heroHealing: int
+    isRadiant: bool
+    isVictory: bool
+    networth: int
+    level: int
+    position: str
+    partyId: int | None
+    itemPurchases: list[StatsItem]
+
+    @model_validator(mode="before")
+    @classmethod
+    def player_data_flatter(cls, player_data: dict[str, Any]):
+        player_data["hero"] = player_data["hero"].get("shortName")
+        player_data["smurfFlag"] = player_data["steamAccount"].get("smurfFlag")
+        player_data["countryCode"] = player_data["steamAccount"].get("countryCode")
+        player_data["seasonRank"] = player_data["steamAccount"].get("seasonRank")
+        player_data["name"] = player_data["steamAccount"].get("name")
+        player_data["realName"] = player_data["steamAccount"].get("realName")
+        player_data["dotaAccountLevel"] = player_data["steamAccount"].get(
+            "dotaAccountLevel"
+        )
+        player_data["lastMatchDateTime"] = player_data["steamAccount"].get(
+            "lastMatchDateTime"
+        )
+        if items := player_data["stats"].get("itemPurchases"):
+            for item in items:
+                item["steamAccountId"] = player_data["steamAccountId"]
+                item["matchId"] = player_data["matchId"]
+        player_data["itemPurchases"] = items
+        return player_data
+
+
+class StratzMatchDetail(BaseModel):
+    id: int
+    gameVersionId: int
+    midLaneOutcome: str
+    topLaneOutcome: str
+    bottomLaneOutcome: str
+    actualRank: int
+    durationSeconds: int
+    firstBloodTime: int
+    regionId: int
+    didRadiantWin: bool
+    gameMode: str
+    rank: int
+    startDateTime: datetime
+    parsedDateTime: datetime
+    endDateTime: datetime
+    statsDateTime: datetime
+    averageImp: int
+    towerStatusDire: int
+    barracksStatusDire: int
+    towerStatusRadiant: int
+    barracksStatusRadiant: int
+    players: list[StratzPlayer]
+
+    @field_validator(
+        "endDateTime", "parsedDateTime", "statsDateTime", "startDateTime", mode="before"
+    )
+    @classmethod
+    def unix_time_to_datetime(cls, unixtime: int):
+        return datetime.fromtimestamp(unixtime, tz=ZoneInfo("Asia/Tehran"))
+
+
+class OpenDotaPlayer(BaseModel):
     account_id: Optional[int] = 0  # Only public accounts
     rank_tier: Optional[int] = 0  # Only public accounts
     personaname: Optional[str] = "Unknown"  # Only public accounts
@@ -54,7 +143,7 @@ class Player(BaseModel):
     @classmethod
     def set_default_if_none(cls, v: int | None) -> int:
         if v is None:
-            return 1 # its for unranked accounts and account id is for safety XD
+            return 1  # its for unranked accounts and account id is for safety XD
         return v
 
     @field_validator("personaname", mode="before")
@@ -65,7 +154,7 @@ class Player(BaseModel):
         return v
 
 
-class Match(BaseModel):
+class OpenDotaMatch(BaseModel):
     match_id: int
     start_time: datetime
     duration: int
@@ -82,11 +171,11 @@ class Match(BaseModel):
     patch: int
     region: int
     has_parsed: bool
-    players: list[Player]
+    players: list[OpenDotaPlayer]
 
     @model_validator(mode="before")
     @classmethod
-    def get_has_parsed(cls, data: dict[str, Any]) -> dict[str, Any]:
+    def get_has_parsed(cls, data: dict[str, Any]):
         od_data: dict[str, bool] | None = data.get("od_data")
         if od_data and isinstance(has_parsed_value := od_data.get("has_parsed"), bool):
             data["has_parsed"] = has_parsed_value
@@ -96,8 +185,8 @@ class Match(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def give_players_match_id(cls, data: dict[str, Any]) -> dict[str, Any]:
-        players: list[dict[str, Any]] | None = data.get("players")
+    def give_players_match_id(cls, data: dict[str, Any]):
+        players = data.get("players")
         match_id = data.get("match_id")
         if match_id and players:
             for player in players:
@@ -107,7 +196,7 @@ class Match(BaseModel):
 
     @field_validator("start_time", mode="before")
     @classmethod
-    def unix_time_to_datetime(cls, unixtime: int) -> datetime:
+    def unix_time_to_datetime(cls, unixtime: int):
         return datetime.fromtimestamp(unixtime, tz=ZoneInfo("Asia/Tehran"))
 
 
@@ -117,13 +206,13 @@ class MatchHistory(BaseModel):
 
     @field_validator("start_time", mode="before")
     @classmethod
-    def unix_time_to_datetime(cls, unixtime: int) -> datetime:
-        return datetime.fromtimestamp(unixtime)
+    def unix_time_to_datetime(cls, unixtime: int):
+        return datetime.fromtimestamp(unixtime, tz=ZoneInfo("Asia/Tehran"))
 
 
-def open_dota_match_detail_parser(data: dict[str, Any]) -> Match | None:
+def open_dota_match_detail_parser(data: dict[str, Any]) -> OpenDotaMatch | None:
     try:
-        return Match.model_validate(data)
+        return OpenDotaMatch.model_validate(data)
     except ValidationError as e:
         print(f"pydantic validation error : {e}")
     return None
@@ -140,5 +229,11 @@ def steam_api_match_history_parser(data: dict[str, Any]) -> list[MatchHistory] |
     return None
 
 
-# TODO OpenDota constants parser
-# TODO OpenDota match history parser
+def stratz_match_detail_parser(data: dict[str, Any]) -> StratzMatchDetail | None:
+    try:
+        match = data.get("data")
+        if match:
+            return StratzMatchDetail.model_validate(match.get("match"))
+    except ValidationError as e:
+        print(f"pydantic validation error : {e}")
+    return None

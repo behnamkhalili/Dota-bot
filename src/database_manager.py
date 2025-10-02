@@ -8,7 +8,7 @@ from sqlalchemy.exc import (
     NoResultFound,
 )
 from models import Base, Match as MatchModel, PlayerStats as PlayerStatsModel
-from data_processor import Match as MatchParser
+from data_processor import OpenDotaMatch as MatchParser
 from datetime import datetime
 import os
 

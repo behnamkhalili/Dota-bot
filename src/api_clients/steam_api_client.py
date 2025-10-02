@@ -8,7 +8,6 @@ class SteamApiClient:
     RETRIES = 4
 
     def __init__(self, key: str) -> None:
-        self.key = key
         self.s = requests.session()
         self.s.params = {"key": key}
 
