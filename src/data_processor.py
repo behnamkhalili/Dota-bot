@@ -21,14 +21,14 @@ class StatsItem(BaseModel):
 class StratzPlayer(BaseModel):
     steamAccountId: int
     matchId: int
-    smurfFlag: Optional[int] = 999
-    countryCode: Optional[str] = "N/A"
-    seasonRank: Optional[int] = 999
+    smurfFlag: Optional[int] = None
+    countryCode: Optional[str] = None
+    seasonRank: Optional[int] = None
     name: str
-    realName: Optional[str] = "N/A"
+    realName: Optional[str] = None
     dotaAccountLevel: int
     hero: str
-    imp: Optional[int] = 999
+    imp: Optional[int] = None
     kills: int
     deaths: int
     assists: int
@@ -44,8 +44,8 @@ class StratzPlayer(BaseModel):
     isVictory: bool
     networth: int
     level: int
-    position: Optional[str] = "N/A"
-    partyId: Optional[int] = 999
+    position: Optional[str] = None
+    partyId: Optional[int] = None
     itemPurchases: Optional[list[StatsItem]] = []
 
     @model_validator(mode="before")
@@ -75,22 +75,22 @@ class StratzPlayer(BaseModel):
     def int_parameters_none_handler(cls, v: int | None):
         if v:
             return v
-        return 999
+        return None
 
     @field_validator("position", "realName", "countryCode", mode="before")
     @classmethod
     def str_parameters_none_handler(cls, v: str | None):
         if v:
             return v
-        return "N/A"
+        return None
 
 
 class StratzMatchDetail(BaseModel):
     id: int
     gameVersionId: int
-    midLaneOutcome: str
-    topLaneOutcome: str
-    bottomLaneOutcome: str
+    midLaneOutcome: Optional[str]
+    topLaneOutcome: Optional[str]
+    bottomLaneOutcome: Optional[str]
     actualRank: int
     durationSeconds: int
     firstBloodTime: int
@@ -102,7 +102,7 @@ class StratzMatchDetail(BaseModel):
     parsedDateTime: Optional[datetime]
     endDateTime: datetime
     statsDateTime: Optional[datetime]
-    averageImp: Optional[int] = 999
+    averageImp: Optional[int] = None
     towerStatusDire: int
     barracksStatusDire: int
     towerStatusRadiant: int
@@ -125,20 +125,20 @@ class StratzMatchDetail(BaseModel):
     def lane_outcome_none_handler(cls, v: str | None):
         if v:
             return v
-        return "N/A"
+        return None
 
     @field_validator("averageImp", mode="before")
     @classmethod
     def int_parameters_none_handler(cls, v: int | None):
         if v:
             return v
-        return 999
+        return None
 
 
 class OpenDotaPlayer(BaseModel):
     account_id: Optional[int] = 0  # Only public accounts
     rank_tier: Optional[int] = 0  # Only public accounts
-    personaname: Optional[str] = "Unknown"  # Only public accounts
+    personaname: Optional[str] = None  # Only public accounts
     match_id: int
     hero_id: int
     kills: int

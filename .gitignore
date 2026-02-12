@@ -212,3 +212,4 @@ __marimo__/
 *.pyo
 *.pyd
 src/api_clients/__pycache__
+typings

@@ -1,0 +1,41 @@
+version: "3.8"
+
+services:
+  dota_pg_database:
+    image: postgres:latest
+    container_name: dota_pg
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5453:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - dota-network
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: dota_pg_admin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - dota-network
+    depends_on:
+      - dota_pg_database
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+
+networks:
+  dota-network:
+    driver: bridge
