@@ -75,7 +75,7 @@ class StratzApiClient:
                 dotaAccountLevel
                 }}
                 hero {{
-                shortName
+                id
                 }}
                 kills
                 deaths

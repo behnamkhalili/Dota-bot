@@ -27,7 +27,7 @@ class StratzPlayer(BaseModel):
     name: str
     realName: Optional[str] = None
     dotaAccountLevel: int
-    hero: str
+    heroId: int
     imp: Optional[int] = None
     kills: int
     deaths: int
@@ -51,7 +51,7 @@ class StratzPlayer(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def player_data_flatter(cls, player_data: dict[str, Any]):
-        player_data["hero"] = player_data["hero"].get("shortName")
+        player_data["heroId"] = player_data["hero"].get("id")
         player_data["smurfFlag"] = player_data["steamAccount"].get("smurfFlag")
         player_data["countryCode"] = player_data["steamAccount"].get("countryCode")
         player_data["seasonRank"] = player_data["steamAccount"].get("seasonRank")
@@ -245,6 +245,39 @@ class MatchHistory(BaseModel):
         return datetime.fromtimestamp(unixtime, tz=ZoneInfo("Asia/Tehran"))
 
 
+class HeroesData(BaseModel):
+    id: int
+    primary_attr: str
+    attack_type: str
+    localized_name: str
+
+
+class ItemsData(BaseModel):
+    id: int
+    name: str
+    cost: int = 0
+
+    @field_validator("cost", mode="before")
+    @classmethod
+    def set_default_if_none(cls, v: int | None) -> int:
+        if v is None:
+            return 0
+        return v
+
+    @model_validator(mode="before")
+    @classmethod
+    def set_name(cls, data: dict[str, Any]):
+        if data.get("dname"):
+            data["name"] = data["dname"]
+        elif data.get("key"):
+            data["name"] = data["key"]
+        elif data.get("name"):
+            data["name"] = data["name"]
+        else:
+            data["name"] = "Unknown_item"
+        return data
+
+
 def open_dota_match_detail_parser(data: dict[str, Any]) -> OpenDotaMatch | None:
     try:
         return OpenDotaMatch.model_validate(data)
@@ -269,6 +302,36 @@ def stratz_match_detail_parser(data: dict[str, Any]) -> StratzMatchDetail | None
         match = data.get("data")
         if match:
             return StratzMatchDetail.model_validate(match.get("match"))
+    except ValidationError as e:
+        print(f"pydantic validation error : {e}")
+    return None
+
+
+def opendota_heroes_data_parser(
+    data: dict[str, dict[str, int | str]],
+) -> list[HeroesData] | None:
+    heroes_list: list[HeroesData] = []
+    try:
+        if data:
+            for v in data.values():
+                if validated_data := HeroesData.model_validate(v):
+                    heroes_list.append(validated_data)
+            return heroes_list
+    except ValidationError as e:
+        print(f"pydantic validation error : {e}")
+    return None
+
+
+def opendota_items_data_parser(
+    data: dict[str, dict[str, int | str]],
+) -> list[ItemsData] | None:
+    items_list: list[ItemsData] = []
+    try:
+        if data:
+            for v in data.values():
+                if validated_data := ItemsData.model_validate(v):
+                    items_list.append(validated_data)
+            return items_list
     except ValidationError as e:
         print(f"pydantic validation error : {e}")
     return None

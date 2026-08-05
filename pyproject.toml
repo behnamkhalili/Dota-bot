@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [tool.poetry]
-packages = [{include = "api", from = "src"}]
+packages = [{include = "api_clients", from = "src"}]
 
 
 [build-system]

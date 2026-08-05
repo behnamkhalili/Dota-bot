@@ -6,15 +6,13 @@ This project collects Dota2 match data from multiple APIs (Stratz, OpenDota, Ste
 ## Features
 - Fetching match data from multiple APIs and storing it in SQLite
 - ETL pipeline for data cleaning and preparation (in progress)
-- Interactive dashboards for match and player analysis (Dash, Plotly, Dash Bootstrap Components) [in progress]
 - Planned: player/match tracking system and automated notifications via Telegram bot
 
 ## Technologies & Tools
 - **Programming:** Python
-- **Database:** SQLite, SQLAlchemy
+- **Database:** Postgres, SQLAlchemy
 - **Data Validation:** Pydantic
 - **APIs:** Stratz API, OpenDota API, Steam API
-- **Visualization:** Dash, Plotly, Dash Bootstrap Components (DBC)
 - **Workflow / Orchestration:** In progress (ETL pipeline)
 - **Dependency Management:** Poetry
 
