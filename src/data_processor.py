@@ -1,6 +1,7 @@
 from datetime import datetime
-from zoneinfo import ZoneInfo
 from typing import Any, Optional
+from zoneinfo import ZoneInfo
+
 from pydantic import (
     AliasChoices,
     BaseModel,
@@ -9,6 +10,10 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+
+from logging_config import get_logger
+
+log = get_logger()
 
 
 class StatsItem(BaseModel):
@@ -282,7 +287,7 @@ def open_dota_match_detail_parser(data: dict[str, Any]) -> OpenDotaMatch | None:
     try:
         return OpenDotaMatch.model_validate(data)
     except ValidationError as e:
-        print(f"pydantic validation error : {e}")
+        log.error(msg=f"pydantic validation error : {e}")
     return None
 
 
@@ -293,7 +298,7 @@ def steam_api_match_history_parser(data: dict[str, Any]) -> list[MatchHistory] |
             try:
                 return [MatchHistory.model_validate(match) for match in matches]
             except ValidationError as e:
-                print(f"pydantic validation error : {e}")
+                log.error(msg=f"pydantic validation error : {e}")
     return None
 
 
@@ -303,7 +308,7 @@ def stratz_match_detail_parser(data: dict[str, Any]) -> StratzMatchDetail | None
         if match:
             return StratzMatchDetail.model_validate(match.get("match"))
     except ValidationError as e:
-        print(f"pydantic validation error : {e}")
+        log.error(msg=f"pydantic validation error : {e}")
     return None
 
 
@@ -318,7 +323,7 @@ def opendota_heroes_data_parser(
                     heroes_list.append(validated_data)
             return heroes_list
     except ValidationError as e:
-        print(f"pydantic validation error : {e}")
+        log.error(msg=f"pydantic validation error : {e}")
     return None
 
 
@@ -333,5 +338,5 @@ def opendota_items_data_parser(
                     items_list.append(validated_data)
             return items_list
     except ValidationError as e:
-        print(f"pydantic validation error : {e}")
+        log.error(msg=f"pydantic validation error : {e}")
     return None

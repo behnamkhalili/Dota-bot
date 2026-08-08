@@ -3,7 +3,8 @@ name = "Dota-bot"
 version = "0.1.0"
 description = ""
 authors = [
-    {name = "Behnam Khalili",email = "you@example.com"}
+    {name = "Behnam Khalili",email = "you@example.com"},
+    {name = "Mohammadreza Afshar",email = "realmohammadrezaafshar@gmail.com"}
 ]
 readme = "README.md"
 requires-python = ">=3.12"
@@ -19,6 +20,23 @@ dependencies = [
 packages = [{include = "api_clients", from = "src"}]
 
 
+[tool.ruff]
+line-length = 88
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.pyright]
+pythonVersion = "3.12"
+pythonPlatform = "Linux"
+extraPaths = ["src"]
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "ruff (>=0.16.2,<0.17.0)"
+]

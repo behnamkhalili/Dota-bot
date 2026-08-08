@@ -1,6 +1,11 @@
 import time
 from typing import Any
+
 import requests
+
+from logging_config import get_logger
+
+log = get_logger()
 
 
 class OpenDotaApiClient:
@@ -18,21 +23,31 @@ class OpenDotaApiClient:
                 response.raise_for_status()
                 return response.json()
             except requests.exceptions.HTTPError as e:
-                print(f"an http error occurred : {e}")
+                log.warning(
+                    f"an http error on attempt {attempt + 1}/{self.RETRIES}: {e}"
+                )
             except requests.exceptions.Timeout as e:
-                print(f"request timeout error : {e}")
+                log.warning(
+                    f"timeout error  on attempt {attempt + 1}/{self.RETRIES}: {e}"
+                )
             except requests.exceptions.SSLError as e:
-                print(f"an ssl error occurred : {e}")
+                log.warning(f"ssl error  on attempt {attempt + 1}/{self.RETRIES}: {e}")
             except requests.exceptions.ConnectionError as e:
-                print(f"connection error : {e}")
+                log.warning(
+                    f"connection error  on attempt {attempt + 1}/{self.RETRIES}: {e}"
+                )
             except requests.exceptions.RequestException as e:
-                print(f"request error : {e}")
+                log.warning(
+                    f"request error  on attempt {attempt + 1}/{self.RETRIES}: {e}"
+                )
             except ValueError as e:
-                print(f"failed to parse json : {e}")
+                log.warning(
+                    f"failed to parse json  on attempt {attempt + 1}/{self.RETRIES}: {e}"
+                )
             if attempt < self.RETRIES - 1:
                 wait_time = 2**attempt
                 time.sleep(wait_time)
-        print("failed to call api !")
+        log.error(msg=f"all {self.RETRIES} attemts failed.")
         return None
 
     def get_match_details(self, match_id: int) -> dict[str, Any] | None:
@@ -48,5 +63,6 @@ class OpenDotaApiClient:
         return self._call_api(url)
 
     def get_constants(self, resource: str) -> dict[str, Any] | None:
+        log.info(msg=f"fetching dota constants:{resource} data from opendota api")
         url = f"{self.BASE_URL}constants/{resource}"
         return self._call_api(url)

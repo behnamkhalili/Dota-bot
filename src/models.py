@@ -1,7 +1,8 @@
-from typing import List
-from sqlalchemy import DateTime, Integer, Boolean, ForeignKey, String, BigInteger, null
-from sqlalchemy.orm import relationship, DeclarativeBase, Mapped, mapped_column
 from datetime import datetime
+from typing import List
+
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, String, null
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.schema import Index
 
 
@@ -15,8 +16,8 @@ class DimPlayer(Base):
     id: Mapped[int] = mapped_column(autoincrement=True, primary_key=True, unique=True)
     steamAccountId: Mapped[int] = mapped_column(BigInteger)
     nickname: Mapped[str] = mapped_column(String)  #
-    countryCode: Mapped[str] = mapped_column(String,nullable=True)
-    realName: Mapped[str] = mapped_column(String,nullable=True)
+    countryCode: Mapped[str] = mapped_column(String, nullable=True)
+    realName: Mapped[str] = mapped_column(String, nullable=True)
     rank: Mapped[int] = mapped_column(Integer, nullable=True)  #
     validFrom: Mapped[datetime] = mapped_column(DateTime)
     validTo: Mapped[datetime] = mapped_column(DateTime, nullable=True)
@@ -46,8 +47,7 @@ class DimItem(Base):
 
 
 # fact tables:
-
-
+#
 class FactMatch(Base):
     __tablename__ = "fact_match"
 

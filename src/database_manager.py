@@ -1,5 +1,8 @@
+import os
 from datetime import datetime
 from typing import Any, Dict, List
+
+from dotenv import load_dotenv
 from sqlalchemy import (
     BigInteger,
     Insert,
@@ -7,20 +10,23 @@ from sqlalchemy import (
     Row,
     String,
     Update,
+    column,
     create_engine,
     or_,
     update,
     values,
-    column,
 )
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import (
-    SQLAlchemyError,
-    IntegrityError,
     DataError,
+    IntegrityError,
     NoSuchTableError,
+    SQLAlchemyError,
 )
+from sqlalchemy.orm import sessionmaker
+
+from data_processor import HeroesData, ItemsData, StratzMatchDetail
+from logging_config import get_logger
 from models import (
     Base,
     DimHero,
@@ -31,12 +37,8 @@ from models import (
     FactPlayerMatch,
 )
 
-from data_processor import StratzMatchDetail, ItemsData, HeroesData
-import os
-from dotenv import load_dotenv
-
-
 load_dotenv()
+log = get_logger()
 
 
 class DatabaseManager:
@@ -52,6 +54,7 @@ class DatabaseManager:
         engine = create_engine(database_url, pool_pre_ping=True, echo=False)
         self.Session = sessionmaker(bind=engine, autoflush=True, expire_on_commit=True)
         Base.metadata.create_all(engine)
+        log.info(msg=f"Database connected: {db_host}:{db_port}/{db_name}")
 
     def add_match(self, match_detail: StratzMatchDetail) -> None:
 
@@ -62,9 +65,13 @@ class DatabaseManager:
             for player in upserted_players_list:
                 players_steamid_id_dict[player[1]] = player[0]
         else:
-            raise Exception("no player returned from database")
+            log.error(msg=f"No player returned from DB for match{match_detail.id}")
 
-        print(players_steamid_id_dict)
+            return
+
+        log.debug(
+            msg=f"Players map for match {match_detail.id} :{players_steamid_id_dict}"
+        )
 
         with self.Session() as session:
             data = FactMatch(
@@ -123,19 +130,19 @@ class DatabaseManager:
             try:
                 session.add(data)
                 session.commit()
-                print(f"match:{match_detail.id} added in database successfully.")
+                log.info(msg=f"match:{match_detail.id} added in database successfully.")
             except IntegrityError as e:
                 session.rollback()
-                print(f"IntegrityError! : {e}")
+                log.error(msg=f"Match {match_detail.id} already exists: {e}")
             except DataError as e:
                 session.rollback()
-                print(f"invalid data! : {e}")
+                log.error(msg=f"invalid data for match {match_detail.id} : {e}")
             except NoSuchTableError as e:
                 session.rollback()
-                print(f"table not found !: {e}")
+                log.error(msg=f"Table not found for match {match_detail.id}!: {e}")
             except SQLAlchemyError as e:
                 session.rollback()
-                print(f"sqlalchemy error : {e}")
+                log.error(msg=f"sqlalchemy error saving match {match_detail.id} : {e}")
 
     def add_items(self, items: list[ItemsData]):
         table = DimItem.__table__
@@ -235,18 +242,19 @@ class DatabaseManager:
                     stmt, execution_options={"populate_existing": True}
                 ).fetchall()
                 session.commit()
-                print("executed")
+                log.debug(msg=f"statement executed,{len(res)} rows returned ")
                 return list(res)
             except IntegrityError as e:
                 session.rollback()
-                print(f"IntegrityError! : {e}")
+                log.error(msg=f"IntegrityError! in statement : {e}")
             except DataError as e:
                 session.rollback()
-                print(f"invalid data! : {e}")
+                log.error(msg=f"Data error in statement! : {e}")
             except NoSuchTableError as e:
                 session.rollback()
-                print(f"table not found !: {e}")
+                log.error(msg=f"table not found in statement!: {e}")
             except SQLAlchemyError as e:
                 session.rollback()
-                print(f"sqlalchemy error : {e}")
+                log.error(msg=f"sqlalchemy error  : {e}")
             return None
+
