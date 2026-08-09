@@ -42,7 +42,7 @@ class OpenDotaApiClient:
                 )
             except ValueError as e:
                 log.warning(
-                    f"failed to parse json  on attempt {attempt + 1}/{self.RETRIES}: {e}"
+                    f"failed to parse json on attempt {attempt + 1}/{self.RETRIES}: {e}"
                 )
             if attempt < self.RETRIES - 1:
                 wait_time = 2**attempt

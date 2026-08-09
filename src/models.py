@@ -1,7 +1,16 @@
 from datetime import datetime
 from typing import List
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, String, null
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    null,
+    text,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.schema import Index
 
@@ -19,6 +28,10 @@ class DimPlayer(Base):
     countryCode: Mapped[str] = mapped_column(String, nullable=True)
     realName: Mapped[str] = mapped_column(String, nullable=True)
     rank: Mapped[int] = mapped_column(Integer, nullable=True)  #
+    lastMatchId: Mapped[int] = mapped_column(BigInteger, nullable=True)
+    trackMatches: Mapped[Boolean] = mapped_column(
+        Boolean, server_default=text("false"), nullable=False
+    )
     validFrom: Mapped[datetime] = mapped_column(DateTime)
     validTo: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     __table_args__ = (

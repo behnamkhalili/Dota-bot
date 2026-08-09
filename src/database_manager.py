@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from dotenv import load_dotenv
 from sqlalchemy import (
@@ -8,11 +8,13 @@ from sqlalchemy import (
     Insert,
     Integer,
     Row,
+    Select,
     String,
     Update,
     column,
     create_engine,
     or_,
+    select,
     update,
     values,
 )
@@ -28,7 +30,6 @@ from sqlalchemy.orm import sessionmaker
 from data_processor import HeroesData, ItemsData, StratzMatchDetail
 from logging_config import get_logger
 from models import (
-    Base,
     DimHero,
     DimItem,
     DimPlayer,
@@ -53,7 +54,7 @@ class DatabaseManager:
         )
         engine = create_engine(database_url, pool_pre_ping=True, echo=False)
         self.Session = sessionmaker(bind=engine, autoflush=True, expire_on_commit=True)
-        Base.metadata.create_all(engine)
+        # Base.metadata.create_all(engine) cuz of using alembic migrator dont need this
         log.info(msg=f"Database connected: {db_host}:{db_port}/{db_name}")
 
     def add_match(self, match_detail: StratzMatchDetail) -> None:
@@ -129,7 +130,8 @@ class DatabaseManager:
             )
             try:
                 session.add(data)
-                session.commit()
+                self._add_last_match_id(data=match_detail)
+                log.info(msg="last match updated for tracked players in the match")
                 log.info(msg=f"match:{match_detail.id} added in database successfully.")
             except IntegrityError as e:
                 session.rollback()
@@ -146,7 +148,7 @@ class DatabaseManager:
 
     def add_items(self, items: list[ItemsData]):
         table = DimItem.__table__
-        stmt = insert(table).values(
+        stmt = insert(table).values(  # pyright: ignore[reportArgumentType]
             [
                 {"itemId": item.id, "name": item.name, "cost": item.cost}
                 for item in items
@@ -156,11 +158,11 @@ class DatabaseManager:
             index_elements=["itemId"],
             set_={"name": stmt.excluded.name, "cost": stmt.excluded.cost},
         ).returning(table)
-        self._exec_stmt(stmt)
+        self._exec_stmt([stmt])
 
     def add_heroes(self, heroes: list[HeroesData]):
         table = DimHero.__table__
-        stmt = insert(table).values(
+        stmt = insert(table).values(  # type: ignore
             [
                 {
                     "heroId": hero.id,
@@ -180,9 +182,9 @@ class DatabaseManager:
                 "attackType": stmt.excluded.attackType,
             },
         ).returning(table)
-        self._exec_stmt(stmt)
+        self._exec_stmt([stmt])
 
-    def _upsert_players(self, data: StratzMatchDetail):
+    def _upsert_players(self, data: StratzMatchDetail) -> List[Row[Any]] | None:
         table = DimPlayer.__table__
         players = data.players
         row_data = [(p.steamAccountId, p.name, p.seasonRank) for p in players]
@@ -196,7 +198,7 @@ class DatabaseManager:
 
         # update the old records.
         update_stmt = (
-            update(table=table)
+            update(table=table)  # type: ignore
             .where(
                 table.c.validTo.is_(None),
                 table.c.steamAccountId == v.c.steamAccountId,
@@ -208,7 +210,7 @@ class DatabaseManager:
             .values(validTo=match_time)
         ).returning(table)
         # insert new rows and skip the existed ones. ps: i used update for returning.
-        insert_stmt = insert(table).values(
+        insert_stmt = insert(table).values(  # type: ignore
             [
                 {
                     "steamAccountId": p.steamAccountId,
@@ -229,21 +231,67 @@ class DatabaseManager:
                 "steamAccountId": insert_stmt.excluded.steamAccountId,
             },
         ).returning(table)
-        self._exec_stmt(update_stmt)
-        added_players = self._exec_stmt(insert_stmt)
-        if added_players:
-            return added_players
+
+        added_players = self._exec_stmt([update_stmt, insert_stmt])
+        if (
+            isinstance(added_players, list) and len(added_players) == 2
+        ):  # both update and insert stmt worked
+            return added_players[1]
         return None
 
-    def _exec_stmt(self, stmt: Insert | Update) -> List[Row[Any]] | None:
+    def _add_last_match_id(self, data: StratzMatchDetail):
+        table = DimPlayer.__table__
+        players = data.players
+        update_stmt = (
+            update(table=table)  # type: ignore
+            .where(
+                table.c.validTo.is_(None),
+                table.c.trackMatches,
+                table.c.steamAccountId.in_([p.steamAccountId for p in players]),
+            )
+            .values(lastMatchId=data.id)
+        ).returning(table)
+        return self._exec_stmt([update_stmt])
+
+    def set_player_track_status(self, player_steam_id: int, status: bool):
+        table = DimPlayer.__table__
+        stmt = (
+            update(table)  # type: ignore
+            .where(table.c.validTo.is_(None), table.c.steamAccountId == player_steam_id)
+            .values(trackMatches=status)
+        ).returning(table)
+        res = self._exec_stmt([stmt])
+        if res and res[0]:
+            log.info(msg=f"player {player_steam_id}'s status changed to {status}")
+            log.debug(msg=res[0])
+
+    def get_tracked_players(self) -> List[Row[Any]] | None:
+        table = DimPlayer.__table__
+        stmt = select(
+            table.c.steamAccountId,
+            table.c.nickname,
+            table.c.trackMatches,
+            table.c.lastMatchId,
+        ).where(table.c.validTo.is_(None), table.c.trackMatches.is_(True))
+        res = self._exec_stmt([stmt])
+        if res:
+            return res[0]
+
+    def _exec_stmt(
+        self, stmt_list: List[Insert | Update | Select]
+    ) -> List[List[Row[Any]]] | None:
+
         with self.Session() as session:
             try:
-                res = session.execute(
-                    stmt, execution_options={"populate_existing": True}
-                ).fetchall()
+                res_list = []
+                for stmt in stmt_list:
+                    res = session.execute(
+                        stmt, execution_options={"populate_existing": True}
+                    ).fetchall()
+                    res_list.append(list(res))
                 session.commit()
-                log.debug(msg=f"statement executed,{len(res)} rows returned ")
-                return list(res)
+                log.debug(msg=f"{len(res_list)} statements executed.")
+                return res_list
             except IntegrityError as e:
                 session.rollback()
                 log.error(msg=f"IntegrityError! in statement : {e}")
@@ -257,4 +305,3 @@ class DatabaseManager:
                 session.rollback()
                 log.error(msg=f"sqlalchemy error  : {e}")
             return None
-

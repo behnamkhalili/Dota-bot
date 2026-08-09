@@ -52,7 +52,7 @@ class StratzApiClient:
             if attempt < self.RETRIES - 1:
                 wait_time = 2**attempt
                 time.sleep(wait_time)
-        log.error(msg=f"all {self.RETRIES} attemts failed.")
+        log.error(msg=f"all {self.RETRIES} attempts failed.")
         return None
 
     def get_match_details(self, match_id: int):
