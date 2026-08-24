@@ -29,6 +29,10 @@ class DimPlayer(Base):
     realName: Mapped[str] = mapped_column(String, nullable=True)
     rank: Mapped[int] = mapped_column(Integer, nullable=True)  #
     lastMatchId: Mapped[int] = mapped_column(BigInteger, nullable=True)
+    lastMatchTime: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
     trackMatches: Mapped[Boolean] = mapped_column(
         Boolean, server_default=text("false"), nullable=False
     )

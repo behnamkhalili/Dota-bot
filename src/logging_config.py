@@ -34,5 +34,5 @@ def get_logger() -> logging.Logger:
 
         logger.addHandler(file_handler)
         logger.addHandler(stream_handler)
-
+        logger.info(msg=f"runId:{run_id}")
     return logger

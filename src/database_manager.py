@@ -1,16 +1,17 @@
-import os
 from datetime import datetime
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
-from dotenv import load_dotenv
 from sqlalchemy import (
     BigInteger,
+    Boolean,
+    DateTime,
     Insert,
     Integer,
     Row,
     Select,
     String,
     Update,
+    cast,
     column,
     create_engine,
     or_,
@@ -25,8 +26,9 @@ from sqlalchemy.exc import (
     NoSuchTableError,
     SQLAlchemyError,
 )
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
+from config import get_settings
 from data_processor import HeroesData, ItemsData, StratzMatchDetail
 from logging_config import get_logger
 from models import (
@@ -38,43 +40,61 @@ from models import (
     FactPlayerMatch,
 )
 
-load_dotenv()
 log = get_logger()
+settings = get_settings()
 
 
 class DatabaseManager:
     def __init__(self) -> None:
-        user = os.getenv("DB_CONNECT_USER")
-        password = os.getenv("DB_CONNECT_PASS")
-        db_name = os.getenv("DB_CONNECT_NAME")
-        db_host = os.getenv("DB_CONNECT_HOST")
-        db_port = os.getenv("DB_CONNECT_PORT")
-        database_url = (
-            f"postgresql+psycopg2://{user}:{password}@{db_host}:{db_port}/{db_name}"
-        )
-        engine = create_engine(database_url, pool_pre_ping=True, echo=False)
-        self.Session = sessionmaker(bind=engine, autoflush=True, expire_on_commit=True)
-        # Base.metadata.create_all(engine) cuz of using alembic migrator dont need this
-        log.info(msg=f"Database connected: {db_host}:{db_port}/{db_name}")
+        try:
+            engine = create_engine(
+                settings.database_url, pool_pre_ping=True, echo=False
+            )
+            self.Session = sessionmaker(
+                bind=engine, autoflush=True, expire_on_commit=True
+            )
+            log.info(
+                msg="Database connected: {}:{}/{}".format(
+                    settings.db_connect_host,
+                    settings.db_connect_port,
+                    settings.db_connect_name,
+                )
+            )
+        except Exception:
+            log.error(
+                msg="cant connect to database! url:{}:{}/{}".format(
+                    settings.db_connect_host,
+                    settings.db_connect_port,
+                    settings.db_connect_name,
+                )
+            )
 
     def add_match(self, match_detail: StratzMatchDetail) -> None:
-
-        upserted_players_list = self._upsert_players(match_detail)
-        players_steamid_id_dict: Dict[int, int] = {}
-
-        if upserted_players_list:
-            for player in upserted_players_list:
-                players_steamid_id_dict[player[1]] = player[0]
-        else:
-            log.error(msg=f"No player returned from DB for match{match_detail.id}")
-
+        with self.Session() as session:
+            res = session.get(FactMatch, match_detail.id)
+        if res:
+            log.info(msg=f"match:{match_detail.id} already is in the database")
             return
 
-        log.debug(
-            msg=f"Players map for match {match_detail.id} :{players_steamid_id_dict}"
-        )
-
         with self.Session() as session:
+            players_steamid_id_dict: Dict[int, int] = {}
+            if match_detail.players:
+                upserted_players_list = self._upsert_players(match_detail, session)
+
+                if upserted_players_list:
+                    for player in upserted_players_list:
+                        players_steamid_id_dict[player[1]] = player[0]
+                else:
+                    log.error(
+                        msg=f"No player returned from DB for match{match_detail.id}"
+                    )
+                    return
+                log.debug(
+                    msg=f"Players map {match_detail.id}:{players_steamid_id_dict}"
+                )
+            else:
+                log.warning(msg=f"match:{match_detail.id} has no players!")
+
             data = FactMatch(
                 matchId=match_detail.id,
                 didRadiantWin=match_detail.didRadiantWin,
@@ -96,7 +116,7 @@ class DatabaseManager:
                 barracksStatusRadiant=match_detail.barracksStatusRadiant,
                 players=[
                     FactPlayerMatch(
-                        playerId=players_steamid_id_dict[player.steamAccountId],
+                        playerId=players_steamid_id_dict.get(player.steamAccountId),
                         matchId=player.matchId,
                         heroId=player.heroId,
                         imp=player.imp,
@@ -130,12 +150,18 @@ class DatabaseManager:
             )
             try:
                 session.add(data)
-                self._add_last_match_id(data=match_detail)
-                log.info(msg="last match updated for tracked players in the match")
+                lastmatch_res = self._add_last_match_id(
+                    data=match_detail, session=session
+                )
+                if lastmatch_res is None:
+                    session.rollback()
+                    log.error(f"lastMatchId update failed for {match_detail.id}")
+                    return
+                session.commit()
                 log.info(msg=f"match:{match_detail.id} added in database successfully.")
             except IntegrityError as e:
                 session.rollback()
-                log.error(msg=f"Match {match_detail.id} already exists: {e}")
+                log.error(msg=f"IntegrityError saving match {match_detail.id}: {e}")
             except DataError as e:
                 session.rollback()
                 log.error(msg=f"invalid data for match {match_detail.id} : {e}")
@@ -184,7 +210,9 @@ class DatabaseManager:
         ).returning(table)
         self._exec_stmt([stmt])
 
-    def _upsert_players(self, data: StratzMatchDetail) -> List[Row[Any]] | None:
+    def _upsert_players(
+        self, data: StratzMatchDetail, session: Session | None = None
+    ) -> List[Row[Any]] | None:
         table = DimPlayer.__table__
         players = data.players
         row_data = [(p.steamAccountId, p.name, p.seasonRank) for p in players]
@@ -232,14 +260,43 @@ class DatabaseManager:
             },
         ).returning(table)
 
-        added_players = self._exec_stmt([update_stmt, insert_stmt])
+        added_players = self._exec_stmt(
+            [update_stmt, insert_stmt], session=session, commit=False
+        )
         if (
             isinstance(added_players, list) and len(added_players) == 2
-        ):  # both update and insert stmt worked
+        ):  # if both update and insert stmt worked
+            updated_players = added_players[0]
+            if updated_players:
+                row = [(p[1], p[7], p[8]) for p in updated_players]
+                vp = values(
+                    column("steamAccountId", BigInteger),
+                    column("lastMatchTime", DateTime),
+                    column("trackMatches", Boolean),
+                    name="temp_updated_players_table",
+                ).data(row)
+                stmt = (
+                    update(table=table)  # type: ignore
+                    .where(  # type: ignore
+                        table.c.validTo.is_(None),
+                        table.c.steamAccountId == vp.c.steamAccountId,
+                        vp.c.trackMatches,
+                    )
+                    .values(
+                        trackMatches=True,
+                        lastMatchTime=cast(vp.c.lastMatchTime, DateTime),
+                    )
+                    .returning(table)
+                )
+                result = self._exec_stmt([stmt], session=session, commit=False)
+                if result is None:
+                    return None
             return added_players[1]
         return None
 
-    def _add_last_match_id(self, data: StratzMatchDetail):
+    def _add_last_match_id(
+        self, data: StratzMatchDetail, session: Session | None
+    ):  # add last match time to compare
         table = DimPlayer.__table__
         players = data.players
         update_stmt = (
@@ -248,10 +305,14 @@ class DatabaseManager:
                 table.c.validTo.is_(None),
                 table.c.trackMatches,
                 table.c.steamAccountId.in_([p.steamAccountId for p in players]),
+                or_(
+                    table.c.lastMatchTime < data.startDateTime,
+                    table.c.lastMatchTime.is_(None),
+                ),
             )
-            .values(lastMatchId=data.id)
+            .values(lastMatchId=data.id, lastMatchTime=data.startDateTime)
         ).returning(table)
-        return self._exec_stmt([update_stmt])
+        return self._exec_stmt([update_stmt], commit=False, session=session)
 
     def set_player_track_status(self, player_steam_id: int, status: bool):
         table = DimPlayer.__table__
@@ -267,41 +328,50 @@ class DatabaseManager:
 
     def get_tracked_players(self) -> List[Row[Any]] | None:
         table = DimPlayer.__table__
-        stmt = select(
-            table.c.steamAccountId,
-            table.c.nickname,
-            table.c.trackMatches,
-            table.c.lastMatchId,
+        stmt = select(  # never ever change the order of this list. indexes are hardcoded in etl  # noqa: E501
+            table.c.steamAccountId,  # hardcoded index in etl dont change
+            table.c.nickname,  # hardcoded index in etl dont change
+            table.c.trackMatches,  # hardcoded index in etl dont change
+            table.c.lastMatchId,  # hardcoded index in etl dont change
         ).where(table.c.validTo.is_(None), table.c.trackMatches.is_(True))
         res = self._exec_stmt([stmt])
         if res:
             return res[0]
 
     def _exec_stmt(
-        self, stmt_list: List[Insert | Update | Select]
+        self,
+        stmt_list: List[Insert | Update | Select],
+        session: Session | None = None,
+        commit: bool = True,
     ) -> List[List[Row[Any]]] | None:
-
-        with self.Session() as session:
-            try:
-                res_list = []
-                for stmt in stmt_list:
-                    res = session.execute(
-                        stmt, execution_options={"populate_existing": True}
-                    ).fetchall()
-                    res_list.append(list(res))
+        owns_session = session is None
+        if owns_session:
+            session = self.Session()
+        try:
+            res_list = []
+            for stmt in stmt_list:
+                res = session.execute(
+                    stmt, execution_options={"populate_existing": True}
+                ).fetchall()
+                res_list.append(list(res))
+            if commit:
                 session.commit()
-                log.debug(msg=f"{len(res_list)} statements executed.")
-                return res_list
-            except IntegrityError as e:
-                session.rollback()
-                log.error(msg=f"IntegrityError! in statement : {e}")
-            except DataError as e:
-                session.rollback()
-                log.error(msg=f"Data error in statement! : {e}")
-            except NoSuchTableError as e:
-                session.rollback()
-                log.error(msg=f"table not found in statement!: {e}")
-            except SQLAlchemyError as e:
-                session.rollback()
-                log.error(msg=f"sqlalchemy error  : {e}")
-            return None
+            log.debug(msg=f"{len(res_list)} statements executed.")
+            return res_list
+        except IntegrityError as e:
+            session.rollback()
+            log.error(msg=f"IntegrityError! in statement : {e}")
+        except DataError as e:
+            session.rollback()
+            log.error(msg=f"Data error in statement! : {e}")
+        except NoSuchTableError as e:
+            session.rollback()
+            log.error(msg=f"table not found in statement!: {e}")
+        except SQLAlchemyError as e:
+            session.rollback()
+            log.error(msg=f"sqlalchemy error  : {e}")
+        finally:
+            if owns_session:
+                session.close()
+
+        return None

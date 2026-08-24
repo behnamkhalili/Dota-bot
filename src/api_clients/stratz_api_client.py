@@ -36,18 +36,18 @@ class StratzApiClient:
                     f"timeout error  on attempt {attempt + 1}/{self.RETRIES}: {e}"
                 )
             except requests.exceptions.SSLError as e:
-                log.warning(f"ssl error  on attempt {attempt + 1}/{self.RETRIES}: {e}")
+                log.warning(f"ssl error on attempt {attempt + 1}/{self.RETRIES}: {e}")
             except requests.exceptions.ConnectionError as e:
                 log.warning(
-                    f"connection error  on attempt {attempt + 1}/{self.RETRIES}: {e}"
+                    f"connection error on attempt {attempt + 1}/{self.RETRIES}: {e}"
                 )
             except requests.exceptions.RequestException as e:
                 log.warning(
-                    f"request error  on attempt {attempt + 1}/{self.RETRIES}: {e}"
+                    f"request error on attempt {attempt + 1}/{self.RETRIES}: {e}"
                 )
             except ValueError as e:
                 log.warning(
-                    f"failed to parse json  on attempt {attempt + 1}/{self.RETRIES}: {e}"
+                    f"failed to parse json on attempt {attempt + 1}/{self.RETRIES}: {e}"
                 )
             if attempt < self.RETRIES - 1:
                 wait_time = 2**attempt

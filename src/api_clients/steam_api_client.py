@@ -44,20 +44,23 @@ class SteamApiClient:
                 )
             except ValueError as e:
                 log.warning(
-                    f"failed to parse json  on attempt {attempt + 1}/{self.RETRIES}: {e}"
+                    f"failed to parse json  on attempt {attempt + 1}/{self.RETRIES}:{e}"
                 )
             if attempt < self.RETRIES - 1:
                 wait_time = 2**attempt
                 time.sleep(wait_time)
-        log.error(msg=f"all {self.RETRIES} attemts failed.")
+        log.error(msg=f"all {self.RETRIES} attempts failed.")
         return None
 
     def get_player_match_history(
-        self, account_id: int, matches_number: int
+        self,
+        account_id: int,
+
+        matches_number: int | None = None,
     ) -> dict[str, Any] | None:
         log.info(msg=f"fetching player:{account_id} match history from steam api.")
         url = f"{self.BASE_URL}GetMatchHistory/v1/"
-        params: dict[str, str | int] = {
+        params: dict[str, str | int | None] = {
             "account_id": account_id,
             "matches_requested": matches_number,
         }
